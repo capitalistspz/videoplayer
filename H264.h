@@ -9,11 +9,8 @@
 #include <vector>
 #include <coreinit/thread.h>
 #include <coreinit/messagequeue.h>
-
-extern "C" {
 #include <h264/decode.h>
 #include <coreinit/fastmutex.h>
-}
 
 class H264DecoderException : public std::exception {
 public:
@@ -33,22 +30,21 @@ enum H264Profile {
     H264_PROFILE_HIGH = 100
 };
 
-struct OutputFrameInfo {
-    std::vector<uint8_t> buffer;
-    int32_t width;
-    int32_t height;
-    int32_t pitch;
-    double timestamp;
-};
-
-struct InputFrameInfo {
-    std::span<const uint8_t> buffer;
-    double timestamp;
-};
-
 class H264Decoder {
     using CtxPointer = std::unique_ptr<void, decltype(&std::free)>;
     using FrameBufPointer = std::unique_ptr<uint8_t, decltype(&std::free)>;
+    struct InputFrameInfo {
+        std::span<const uint8_t> buffer;
+        double timestamp;
+    };
+public:
+    struct OutputFrameInfo {
+        std::vector<uint8_t> buffer;
+        int32_t width;
+        int32_t height;
+        int32_t pitch;
+        double timestamp;
+    };
 public:
     static int32_t GetStartPoint(std::span<const uint8_t> buffer);
 
@@ -59,7 +55,7 @@ public:
 private:
     static void DecodeCallback(H264DecodeOutput *output);
     void DecoderLoop();
-
+private:
     FrameBufPointer m_frameBuffer;
     CtxPointer m_context;
     std::vector<OSMessage> m_messageBuffer;

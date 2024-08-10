@@ -211,11 +211,14 @@ WriteSamples(AP4_Track*             track,
     }
     WHBLogPrintf("Wrote %d samples", index);
 }
-
+// 16.16 fixed to 32 bit float
+float fixed_to_floating_pt(uint32_t val) {
+    return (val >> 16) + (val & 0xffff) / 65536.0f;
+}
 /*----------------------------------------------------------------------
 |   main
 +---------------------------------------------------------------------*/
-bool LoadAVCTrackFromMP4(const std::filesystem::path& path, std::vector<uint8_t>& byteStream)
+bool LoadAVCTrackFromMP4(const std::filesystem::path& path, std::vector<uint8_t>& byteStream, unsigned& outWidth, unsigned& outHeight)
 {
 
     AP4_Result result;
@@ -255,6 +258,8 @@ bool LoadAVCTrackFromMP4(const std::filesystem::path& path, std::vector<uint8_t>
         return false;
     }
 
+    outWidth =  fixed_to_floating_pt(video_track->GetWidth());
+    outHeight = fixed_to_floating_pt(video_track->GetHeight());
     // show info
     AP4_Debug("Video Track:\n");
     AP4_Debug("  duration: %u ms\n",  (int)video_track->GetDurationMs());

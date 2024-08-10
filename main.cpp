@@ -1,17 +1,23 @@
+#include <CafeGLSLCompiler.h>
 #include <whb/sdcard.h>
-#include <whb/file.h>
 #include <whb/log.h>
 #include <whb/log_cafe.h>
 #include <cstring>
 #include <filesystem>
 #include <span>
-#include <coreinit/thread.h>
 #include <vector>
+#include <nv12torgb_frag.h>
+#include <nv12torgb_vert.h>
+#include <whb/proc.h>
 
+#include "Gfx.h"
 #include "H264.h"
 #include "MP4.h"
 
 int main() {
+    WHBProcInit();
+    WHBGfxInit();
+    GLSL_Init();
     WHBLogCafeInit();
     WHBMountSdCard();
     auto sdPath = std::filesystem::path(WHBGetSdCardMountPath()) / "videos" / "videoplayback.mp4";
@@ -20,43 +26,59 @@ int main() {
 
     std::vector<uint8_t> byteStream;
     byteStream.reserve(byteStreamCapacity);
-    if (!LoadAVCTrackFromMP4(sdPath, byteStream)) {
+    unsigned trackWidth, trackHeight;
+    if (!LoadAVCTrackFromMP4(sdPath, byteStream, trackWidth, trackHeight)) {
         WHBLogPrint("Failed to load track");
         return -1;
     }
+    WHBLogPrintf("Loaded track with dim %d x %d", trackWidth, trackHeight);
 
-    const auto decStartOffset  = H264Decoder::GetStartPoint(byteStream);
+    const auto decStartOffset = H264Decoder::GetStartPoint(byteStream);
     if (decStartOffset < 0) {
         WHBLogPrint("Failed to find start");
     } else {
         WHBLogPrintf("Found start at %d", decStartOffset);
     }
 
-    auto decoder = H264Decoder(H264_PROFILE_MAIN, 30, 640, 360);
+    const auto vtxShaderSrc = std::string(reinterpret_cast<const char *>(nv12torgb_vert), nv12torgb_vert_size);
+    const auto pixShaderSrc = std::string(reinterpret_cast<const char *>(nv12torgb_frag), nv12torgb_frag_size);
 
-    decoder.SubmitFrame(byteStream, 0);
+    std::unique_ptr<Gfx> gfx;
 
-    WHBLogPrint("Waiting for frame");
+    try {
+        gfx = std::make_unique<Gfx>(vtxShaderSrc, pixShaderSrc);
+    }
+    catch (const std::exception& e) {
+        WHBLogPrint(e.what());
+        return -1;
+    }
+    gfx->SetFrameDimensions(trackWidth, trackHeight);
+    gfx->SetVideoDrawTargets(Gfx::DrawTargets::TV);
 
-    auto frameInfo = decoder.GetDecodedFrame();
+    std::optional<H264Decoder> decoder;
+    try {
+        decoder.emplace(H264_PROFILE_MAIN, 30, trackWidth, trackHeight);
+    }
+    catch (const std::exception& e) {
+        WHBLogPrint(e.what());
+        return -1;
+    }
+
+    decoder->SubmitFrame(byteStream, 0);
+
+    auto frameInfo = decoder->GetDecodedFrame();
     while (!frameInfo) {
-        frameInfo = decoder.GetDecodedFrame();
+        frameInfo = decoder->GetDecodedFrame();
     }
 
-    WHBLogPrint("Got decoded frame");
-
-    auto outImage = std::filesystem::path(WHBGetSdCardMountPath()) / "videos" / "decoded.nv12";
-
-    WHBLogPrintf("Frame buffer size: %d", frameInfo->buffer.size());
-
-    auto *file = std::fopen(outImage.c_str(), "wb");
-    WHBLogPrint("Opened file");
-    for (auto lineNo = 0; lineNo < frameInfo->height * 3 / 2; ++lineNo) {
-        std::fwrite(frameInfo->buffer.data() + lineNo * frameInfo->pitch, 1, frameInfo->width, file);
+    gfx->SetFrameBuffer(*frameInfo);
+    while (WHBProcIsRunning()) {
+        gfx->Draw();
     }
-    WHBLogPrint("Finished writing to file");
-    std::fclose(file);
 
+    GLSL_Shutdown();
+    WHBGfxShutdown();
+    WHBProcShutdown();
     WHBLogCafeDeinit();
     return 0;
 }

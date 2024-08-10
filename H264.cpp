@@ -97,7 +97,7 @@ void H264Decoder::SubmitFrame(std::span<const uint8_t> data, double timestamp) {
     m_framesIn.emplace_back(data, timestamp);
 }
 
-std::optional<OutputFrameInfo> H264Decoder::GetDecodedFrame() {
+std::optional<H264Decoder::OutputFrameInfo> H264Decoder::GetDecodedFrame() {
     OSMessage message;
     if (!OSReceiveMessage(&m_frameOutQueue, &message, OS_MESSAGE_FLAGS_NONE)) {
         return std::nullopt;
@@ -125,7 +125,6 @@ void H264Decoder::DecoderLoop() {
 }
 
 void H264Decoder::DecodeCallback(H264DecodeOutput *output) {
-    WHBLogPrint("%d frames");
     if (output->frameCount < 1)
         return;
     auto *origin = static_cast<H264Decoder *>(output->userMemory);
@@ -133,15 +132,12 @@ void H264Decoder::DecodeCallback(H264DecodeOutput *output) {
 
     WHBLogPrint("Locked");
     for (auto i = 0; i < output->frameCount; ++i) {
-        auto &current = output->decodeResults[i];
+        const auto &current = output->decodeResults[i];
         const unsigned frameByteCount = current->height * current->nextLine * 3 / 2;
-        auto beg = static_cast<uint8_t *>(current->framebuffer);
-        auto end = beg + frameByteCount;
+        auto frameSpan = std::span(static_cast<uint8_t *>(current->framebuffer), frameByteCount);
 
-        auto vec = std::vector(beg, end);
-        WHBLogPrintf("Made %d byte vector", vec.size());
         auto *frameInfo = new OutputFrameInfo{
-            std::move(vec),
+            {frameSpan.begin(), frameSpan.end()},
             current->width,
             current->height,
             current->nextLine,
@@ -149,7 +145,7 @@ void H264Decoder::DecodeCallback(H264DecodeOutput *output) {
         };
 
         WHBLogPrint("Enqueuing frame");
-        OSMessage msg{frameInfo};
+        OSMessage msg{frameInfo, {}};
         OSSendMessage(&origin->m_frameOutQueue, &msg, OS_MESSAGE_FLAGS_NONE);
         WHBLogPrint("Enqueued frame");
     }
