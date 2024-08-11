@@ -12,6 +12,8 @@ void main()
     float y = texture(yTex, pixTexCoord).r;
     vec2 uvVec = texture(uvTex, pixTexCoord).rg;
 
+    // Based on the values from https://learn.microsoft.com/en-us/windows/win32/medfound/recommended-8-bit-yuv-formats-for-video-rendering#converting-8-bit-yuv-to-rgb888
+
     float yA = y - 0.0625;
     float uA = uvVec.r - 0.5;
     float vA = uvVec.g - 0.5;

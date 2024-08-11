@@ -1,8 +1,10 @@
 #pragma once
-#include <whb/gfx.h>
-#include <string>
 #include <exception>
 #include <memory>
+#include <string>
+
+#include <whb/gfx.h>
+
 #include "H264.h"
 
 class GfxException : public std::exception {
@@ -18,15 +20,7 @@ private:
 
 class Gfx {
 public:
-    enum class DrawTargets {
-        None = 0,
-        TV  = 1 << 0,
-        DRC = 1 << 1
-    };
-    struct AlignReqs {
-        uint32_t yAlignment;
-        uint32_t uvAlignment;
-    };
+    enum class DrawTargets { None = 0, TV = 1 << 0, DRC = 1 << 1 };
 
     // WHBGfxInit and GLSL_Init have to be run before this
     explicit Gfx(const std::string &vertSource, const std::string &fragSource);
@@ -34,14 +28,16 @@ public:
     void SetFrameDimensions(unsigned width, unsigned height);
 
     // NV 12 format frame
-    bool SetFrameBuffer(const H264Decoder::OutputFrameInfo& frameInfo);
+    bool SetFrameBuffer(const H264Decoder::OutputFrameInfo &frameInfo);
+
     // Bitmask
     void SetVideoDrawTargets(DrawTargets targets);
 
-
     void Draw();
+
 private:
     void DrawInternal();
+
 private:
     GX2Texture m_yTexture{};
     GX2Texture m_uvTexture{};
@@ -51,7 +47,6 @@ private:
     DrawTargets m_targets{};
     GX2RBuffer m_vtxPosBuffer{};
     GX2RBuffer m_texCoordBuffer{};
-
 };
 
 WUT_ENUM_BITMASK_TYPE(Gfx::DrawTargets);
