@@ -203,7 +203,7 @@ static AP4_Result MakeFramePrefix(AP4_SampleDescription* sdesc, AP4_DataBuffer& 
 /*----------------------------------------------------------------------
 |   WriteSamples
 +---------------------------------------------------------------------*/
-static void WriteSamples(AP4_Track* track, AP4_SampleDescription* sdesc, std::vector<uint8_t>& output)
+static void WriteSamples(AP4_Track* track, AP4_SampleDescription* sdesc, std::vector<uint8_t>& output, std::vector<size_t>& sampleOffsets)
 {
     // make the frame prefix
     unsigned int nalu_length_size = 0;
@@ -219,6 +219,7 @@ static void WriteSamples(AP4_Track* track, AP4_SampleDescription* sdesc, std::ve
     AP4_Ordinal index = 0;
     while (AP4_SUCCEEDED(track->ReadSample(index, sample, data)))
     {
+        sampleOffsets.push_back(output.size());
         WriteSample(data, prefix, nalu_length_size, output);
         index++;
     }
@@ -232,8 +233,7 @@ float fixed_to_floating_pt(uint32_t val)
 /*----------------------------------------------------------------------
 |   main
 +---------------------------------------------------------------------*/
-bool LoadAVCTrackFromMP4(const std::filesystem::path& path, std::vector<uint8_t>& outByteStream, unsigned& outWidth,
-                         unsigned& outHeight)
+bool LoadAVCTrackFromMP4(const std::filesystem::path& path, H264TrackData& outTrackData)
 {
 
     AP4_Result result;
@@ -276,9 +276,8 @@ bool LoadAVCTrackFromMP4(const std::filesystem::path& path, std::vector<uint8_t>
         input->Release();
         return false;
     }
-
-    outWidth = fixed_to_floating_pt(video_track->GetWidth());
-    outHeight = fixed_to_floating_pt(video_track->GetHeight());
+    outTrackData.width = fixed_to_floating_pt(video_track->GetWidth());
+    outTrackData.height = fixed_to_floating_pt(video_track->GetHeight());
     // show info
     WHBLogPrint("Video Track:\n");
     WHBLogPrintf("  duration: %u ms\n", video_track->GetDurationMs());
@@ -286,10 +285,14 @@ bool LoadAVCTrackFromMP4(const std::filesystem::path& path, std::vector<uint8_t>
 
     switch (sample_description->GetType())
     {
-    case AP4_SampleDescription::TYPE_AVC:
+    case AP4_SampleDescription::TYPE_AVC: {
         WHBLogPrint("Writing samples");
-        WriteSamples(video_track, sample_description, outByteStream);
+        auto* avc_desc = AP4_DYNAMIC_CAST(AP4_AvcSampleDescription, sample_description);
+        outTrackData.profile = avc_desc->GetProfile();
+        outTrackData.level = avc_desc->GetLevel();
+        WriteSamples(video_track, sample_description, outTrackData.stream, outTrackData.sampleOffsets);
         break;
+    }
 
     case AP4_SampleDescription::TYPE_PROTECTED:
         OSFatal("No support for protected video");
