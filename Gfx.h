@@ -30,7 +30,7 @@ class Gfx
     };
 
     // WHBGfxInit and GLSL_Init have to be run before this
-    explicit Gfx(const std::string& vertSource, const std::string& fragSource);
+    explicit Gfx();
     ~Gfx();
 
     void SetFrameDimensions(unsigned width, unsigned height);

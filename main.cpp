@@ -1,10 +1,7 @@
 #include "Gfx.h"
 #include "H264.h"
 #include "MP4.h"
-#include <CafeGLSLCompiler.h>
 #include <filesystem>
-#include <nv12torgb_frag.h>
-#include <nv12torgb_vert.h>
 #include <span>
 #include <sysapp/launch.h>
 #include <vector>
@@ -23,13 +20,11 @@ struct Libs
         WHBLogCafeInit();
         WHBLogUdpInit();
         WHBGfxInit();
-        GLSL_Init();
         VPADInit();
     }
     ~Libs()
     {
         VPADShutdown();
-        // GLSL_Shutdown();
         WHBGfxShutdown();
         WHBLogUdpDeinit();
         WHBLogCafeDeinit();
@@ -70,16 +65,10 @@ int main()
         WHBLogPrintf("Found start at %d", decStartOffset);
     }
 
-    const auto vtxShaderSrc = std::string(reinterpret_cast<const char*>(nv12torgb_vert), nv12torgb_vert_size);
-    const auto pixShaderSrc = std::string(reinterpret_cast<const char*>(nv12torgb_frag), nv12torgb_frag_size);
-    WHBLogPrint(vtxShaderSrc.c_str());
-    WHBLogPrint(pixShaderSrc.c_str());
-
     std::unique_ptr<Gfx> gfx;
-
     try
     {
-        gfx = std::make_unique<Gfx>(vtxShaderSrc, pixShaderSrc);
+        gfx = std::make_unique<Gfx>();
     }
     catch (const std::exception& e)
     {

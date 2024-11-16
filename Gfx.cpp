@@ -1,6 +1,7 @@
 #include "Gfx.h"
 
-#include <CafeGLSLCompiler.h>
+#include <nv12torgb_gsh.h>
+
 #include <glm/glm.hpp>
 #include <glm/gtc/type_ptr.hpp>
 
@@ -9,6 +10,7 @@
 #include <gx2/surface.h>
 #include <gx2/utils.h>
 
+#include <whb/gfx.h>
 #include <whb/log.h>
 
 GfxException::GfxException(std::string_view str) : m_content(str)
@@ -42,26 +44,13 @@ void CommonTexInit(GX2Texture& tex)
     tex.surface.depth = 1;
 }
 
-Gfx::Gfx(const std::string& vertSource, const std::string& fragSource)
+Gfx::Gfx()
 {
-    constexpr static auto infoLogSize = 512;
-    char infoLogBuffer[infoLogSize];
-    auto* const vertShader =
-        GLSL_CompileVertexShader(vertSource.data(), infoLogBuffer, infoLogSize, GLSL_COMPILER_FLAG_NONE);
-    if (!vertShader)
+    if (!WHBGfxLoadGFDShaderGroup(&m_shaderGroup, 0, nv12torgb_gsh))
     {
-        throw GfxException("Failed to compile vertex shader", infoLogBuffer);
-    }
-    auto* const pixShader =
-        GLSL_CompilePixelShader(fragSource.data(), infoLogBuffer, infoLogSize, GLSL_COMPILER_FLAG_NONE);
-    if (!pixShader)
-    {
-        GLSL_FreeVertexShader(vertShader);
-        throw GfxException("Failed to compile pixel shader", infoLogBuffer);
+        throw GfxException("Failed to load GFD shaders");
     }
 
-    m_shaderGroup.vertexShader = vertShader;
-    m_shaderGroup.pixelShader = pixShader;
     GX2Invalidate(GX2_INVALIDATE_MODE_CPU_SHADER, m_shaderGroup.vertexShader->program,
                   m_shaderGroup.vertexShader->size);
     GX2Invalidate(GX2_INVALIDATE_MODE_CPU_SHADER, m_shaderGroup.pixelShader->program, m_shaderGroup.pixelShader->size);
@@ -94,8 +83,7 @@ Gfx::~Gfx()
         std::free(m_yTexture.surface.image);
     if (m_uvTexture.surface.image)
         std::free(m_uvTexture.surface.image);
-    GLSL_FreePixelShader(m_shaderGroup.pixelShader);
-    GLSL_FreeVertexShader(m_shaderGroup.vertexShader);
+    WHBGfxFreeShaderGroup(&m_shaderGroup);
 }
 
 void Gfx::SetFrameDimensions(unsigned width, unsigned height)
