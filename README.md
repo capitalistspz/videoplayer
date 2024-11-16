@@ -28,9 +28,11 @@ cmake --build .
 ```
 # Install lib to $DEVKITPRO/portlibs/wiiu
 cmake --install .
-# Alternatively install to custom directory
-cmake --install . --prefix /my/custom/directory
 ```
 
-# Build app
-`cmake -DCMAKE_TOOLCHAIN_FILE=$DEVKITPRO/cmake/WiiU.cmake -S . -B build`
+# Configure and Build app
+```
+cmake -DCMAKE_TOOLCHAIN_FILE=$DEVKITPRO/cmake/WiiU.cmake -S . -B build
+cd build
+cmake --build .
+```
