@@ -8,8 +8,7 @@
 #include <gx2/mem.h>
 #include <gx2/surface.h>
 #include <gx2/utils.h>
-#include <gx2r/buffer.h>
-#include <gx2r/draw.h>
+
 #include <whb/log.h>
 
 GfxException::GfxException(std::string_view str) : m_content(str)
@@ -27,9 +26,9 @@ const char* GfxException::what() const noexcept
     return m_content.c_str();
 }
 
-static glm::vec2 s_texCoords[4]{{0.0, 1.0}, {1.0, 1.0}, {1.0, 0.0}, {0.0, 0.0}};
+constexpr static glm::vec2 TEX_COORDS[4]{{0.0, 1.0}, {1.0, 1.0}, {1.0, 0.0}, {0.0, 0.0}};
 
-static glm::vec2 s_posCoords[4]{{-1.0, -1.0}, {+1.0, -1.0}, {+1.0, +1.0}, {-1.0, +1.0}};
+constexpr static glm::vec2 VTX_COORDS[4]{{-1.0, -1.0}, {+1.0, -1.0}, {+1.0, +1.0}, {-1.0, +1.0}};
 
 void CommonTexInit(GX2Texture& tex)
 {
@@ -87,11 +86,6 @@ Gfx::Gfx(const std::string& vertSource, const std::string& fragSource)
     WHBGfxInitShaderAttribute(&m_shaderGroup, "inPosCoord", 0, 0, GX2_ATTRIB_FORMAT_FLOAT_32_32_32_32);
     WHBGfxInitShaderAttribute(&m_shaderGroup, "inTexCoord", 1, 0, GX2_ATTRIB_FORMAT_FLOAT_32_32_32_32);
 
-    m_vtxPosBuffer.flags = GX2R_RESOURCE_BIND_VERTEX_BUFFER | GX2R_RESOURCE_USAGE_GPU_READ;
-    m_texCoordBuffer.flags = GX2R_RESOURCE_BIND_VERTEX_BUFFER | GX2R_RESOURCE_USAGE_GPU_READ;
-    GX2RCreateBufferUserMemory(&m_vtxPosBuffer, s_posCoords, sizeof(s_posCoords));
-    GX2RCreateBufferUserMemory(&m_texCoordBuffer, s_texCoords, sizeof(s_texCoords));
-
     WHBGfxInitFetchShader(&m_shaderGroup);
 }
 Gfx::~Gfx()
@@ -100,8 +94,6 @@ Gfx::~Gfx()
         std::free(m_yTexture.surface.image);
     if (m_uvTexture.surface.image)
         std::free(m_uvTexture.surface.image);
-    GX2RDestroyBufferEx(&m_vtxPosBuffer, GX2R_RESOURCE_BIND_NONE);
-    GX2RDestroyBufferEx(&m_texCoordBuffer, GX2R_RESOURCE_BIND_NONE);
     GLSL_FreePixelShader(m_shaderGroup.pixelShader);
     GLSL_FreeVertexShader(m_shaderGroup.vertexShader);
 }
@@ -189,8 +181,8 @@ void Gfx::DrawInternal()
     GX2SetPixelSampler(&m_ySampler, m_shaderGroup.pixelShader->samplerVars[0].location);
     GX2SetPixelSampler(&m_uvSampler, m_shaderGroup.pixelShader->samplerVars[1].location);
 
-    GX2RSetAttributeBuffer(&m_vtxPosBuffer, 0, sizeof(glm::vec2), 0);
-    GX2RSetAttributeBuffer(&m_texCoordBuffer, 1, sizeof(glm::vec2), 0);
+    GX2SetAttribBuffer(0, sizeof(VTX_COORDS), sizeof(glm::vec2), VTX_COORDS);
+    GX2SetAttribBuffer(1, sizeof(TEX_COORDS), sizeof(glm::vec2), TEX_COORDS);
 
     GX2DrawEx(GX2_PRIMITIVE_MODE_QUADS, 4, 0, 1);
 }

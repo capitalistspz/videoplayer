@@ -53,8 +53,6 @@ class Gfx
     GX2Sampler m_uvSampler{};
     WHBGfxShaderGroup m_shaderGroup{};
     DrawTargets m_targets{};
-    GX2RBuffer m_vtxPosBuffer{};
-    GX2RBuffer m_texCoordBuffer{};
 };
 
 WUT_ENUM_BITMASK_TYPE(Gfx::DrawTargets);
