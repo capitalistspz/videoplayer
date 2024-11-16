@@ -295,12 +295,12 @@ bool LoadAVCTrackFromMP4(const std::filesystem::path& path, H264TrackData& outTr
     }
 
     case AP4_SampleDescription::TYPE_PROTECTED:
-        OSFatal("No support for protected video");
-        break;
+        WHBLogPrint("ERROR: No support for protected video");
+        return false;
 
     default:
         WHBLogPrintf("ERROR: unsupported sample type\n");
-        break;
+        return false;
     }
 
     input->Release();

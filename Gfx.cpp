@@ -57,8 +57,10 @@ Gfx::Gfx(const std::string& vertSource, const std::string& fragSource)
         GLSL_CompilePixelShader(fragSource.data(), infoLogBuffer, infoLogSize, GLSL_COMPILER_FLAG_NONE);
     if (!pixShader)
     {
+        GLSL_FreeVertexShader(vertShader);
         throw GfxException("Failed to compile pixel shader", infoLogBuffer);
     }
+
     m_shaderGroup.vertexShader = vertShader;
     m_shaderGroup.pixelShader = pixShader;
     GX2Invalidate(GX2_INVALIDATE_MODE_CPU_SHADER, m_shaderGroup.vertexShader->program,
@@ -92,6 +94,17 @@ Gfx::Gfx(const std::string& vertSource, const std::string& fragSource)
 
     WHBGfxInitFetchShader(&m_shaderGroup);
 }
+Gfx::~Gfx()
+{
+    if (m_yTexture.surface.image)
+        std::free(m_yTexture.surface.image);
+    if (m_uvTexture.surface.image)
+        std::free(m_uvTexture.surface.image);
+    GX2RDestroyBufferEx(&m_vtxPosBuffer, GX2R_RESOURCE_BIND_NONE);
+    GX2RDestroyBufferEx(&m_texCoordBuffer, GX2R_RESOURCE_BIND_NONE);
+    GLSL_FreePixelShader(m_shaderGroup.pixelShader);
+    GLSL_FreeVertexShader(m_shaderGroup.vertexShader);
+}
 
 void Gfx::SetFrameDimensions(unsigned width, unsigned height)
 {
@@ -109,7 +122,7 @@ void Gfx::SetFrameDimensions(unsigned width, unsigned height)
     if (m_yTexture.surface.image)
         std::free(m_yTexture.surface.image);
     if (m_uvTexture.surface.image)
-        std::free(m_yTexture.surface.image);
+        std::free(m_uvTexture.surface.image);
 
     m_yTexture.surface.image = std::aligned_alloc(m_yTexture.surface.alignment, m_yTexture.surface.imageSize);
     m_uvTexture.surface.image = std::aligned_alloc(m_uvTexture.surface.alignment, m_uvTexture.surface.imageSize);

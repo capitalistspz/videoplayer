@@ -4,14 +4,12 @@
 #include <memory>
 #include <optional>
 #include <span>
-#include <stdexcept>
+#include <exception>
 #include <thread>
 #include <vector>
 
-#include <coreinit/fastmutex.h>
 #include <coreinit/messagequeue.h>
 #include <h264/decode.h>
-
 
 class H264DecoderException : public std::exception
 {
@@ -71,10 +69,10 @@ class H264Decoder
     std::vector<OSMessage> m_messageBuffer;
 
     std::deque<InputFrameInfo> m_framesIn{};
-    OSFastMutex m_mutexIn{};
+    std::mutex m_mutexIn{};
 
     OSMessageQueue m_frameOutQueue;
 
-    std::jthread m_thread;
+    std::thread m_thread;
     std::atomic_bool m_running;
 };

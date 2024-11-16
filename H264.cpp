@@ -4,23 +4,7 @@
 #include <mutex>
 #include <utility>
 
-#include <coreinit/spinlock.h>
 #include <whb/log.h>
-
-struct ScopedLock
-{
-    explicit ScopedLock(OSFastMutex& mutex) noexcept : m_lock(&mutex)
-    {
-        OSFastMutex_Lock(m_lock);
-    }
-
-    ~ScopedLock() noexcept
-    {
-        OSFastMutex_Unlock(m_lock);
-    }
-
-    OSFastMutex* m_lock;
-};
 
 void* H264Alloc(uint32_t size)
 {
@@ -71,43 +55,40 @@ H264Decoder::H264Decoder(H264Profile profile, unsigned level, unsigned width, un
     h264Error = H264DECInitParam(h264MemReq, m_context.get());
     if (h264Error)
     {
-        throw H264DecoderException("Failed to init decoder: ", h264Error);
+        throw H264DecoderException("Failed to init decoder", h264Error);
     }
     h264Error = H264DECSetParam_FPTR_OUTPUT(m_context.get(), H264Decoder::DecodeCallback);
     if (h264Error)
     {
-        throw H264DecoderException("Failed to set decode callback: ", h264Error);
+        throw H264DecoderException("Failed to set decode callback", h264Error);
     }
     auto temp = this;
     // The user memory value is dereferenced when set
     h264Error = H264DECSetParam_USER_MEMORY(m_context.get(), &temp);
     if (h264Error)
     {
-        throw H264DecoderException("Failed to set decoder arg: ", h264Error);
+        throw H264DecoderException("Failed to set decoder arg", h264Error);
     }
-    WHBLogPrintf("Set user memory to %p", this);
     h264Error = H264DECOpen(m_context.get());
     if (h264Error)
     {
-        throw H264DecoderException("Failed to open session: ", h264Error);
+        throw H264DecoderException("Failed to open session", h264Error);
     }
     m_running = true;
-    OSFastMutex_Init(&m_mutexIn, "decoderInputMutex");
 
-    auto messageCount = m_messageBuffer.size();
-    WHBLogPrintf("Message count: %u", messageCount);
-    OSInitMessageQueueEx(&m_frameOutQueue, m_messageBuffer.data(), messageCount, "decoderOutputQueue");
-    m_thread = std::jthread([this] { this->DecoderLoop(); });
+    OSInitMessageQueueEx(&m_frameOutQueue, m_messageBuffer.data(), m_messageBuffer.size(), "decoderOutputQueue");
+    m_thread = std::thread([this] { this->DecoderLoop(); });
 }
 
 H264Decoder::~H264Decoder()
 {
     m_running = false;
+    m_thread.join();
 }
 
 void H264Decoder::SubmitFrame(std::span<const uint8_t> data, double timestamp)
 {
-    ScopedLock lock(m_mutexIn);
+    std::scoped_lock l{m_mutexIn};
     m_framesIn.emplace_back(data, timestamp);
 }
 
@@ -128,7 +109,7 @@ void H264Decoder::DecoderLoop()
 {
     while (m_running)
     {
-        ScopedLock lock(m_mutexIn);
+        std::scoped_lock l{m_mutexIn};
         if (m_framesIn.empty())
             continue;
         auto frame = m_framesIn.front();
@@ -147,9 +128,7 @@ void H264Decoder::DecodeCallback(H264DecodeOutput* output)
     if (output->frameCount < 1)
         return;
     auto* origin = static_cast<H264Decoder*>(output->userMemory);
-    WHBLogPrintf("User memory is %p", origin);
 
-    WHBLogPrint("Locked");
     for (auto i = 0; i < output->frameCount; ++i)
     {
         const auto& current = output->decodeResults[i];
@@ -162,9 +141,8 @@ void H264Decoder::DecodeCallback(H264DecodeOutput* output)
                                               current->nextLine,
                                               current->timestamp};
 
-        WHBLogPrint("Enqueuing frame");
+        WHBLogPrintf("Frame ts: %f", current->timestamp);
         OSMessage msg{frameInfo, {}};
         OSSendMessage(&origin->m_frameOutQueue, &msg, OS_MESSAGE_FLAGS_NONE);
-        WHBLogPrint("Enqueued frame");
     }
 }
